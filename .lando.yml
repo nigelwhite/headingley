@@ -1,0 +1,4 @@
+name: headingley
+recipe: drupal7
+config:
+  webroot: .

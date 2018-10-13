@@ -1,0 +1,37 @@
+.well {
+    background-color: #fff;
+    border: none;
+}
+
+.page-header {
+    border: none;
+}
+
+.name {
+    font-weight: 800;
+    font-size: 1.75em;
+}
+
+.region-content p, ul, ol {
+    font-size: 1.3em;
+}
+
+.inset {
+    margin: 1em 0 1em 2em;
+}
+
+#user-login-form .item-list li.first {
+    display: none;
+}
+
+/* decrease font size of sidebar text */
+#block-system-navigation, #user-login-form ul {
+    font-size: 0.9em;
+}
+.block-title {
+    font-size: 1.5em;
+}
+
+.row {
+    margin-top: 3em;
+}
