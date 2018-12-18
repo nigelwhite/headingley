@@ -54,7 +54,7 @@ function user_mailman_register_form($form, &$form_state, $account = NULL, $show_
     '#title' => t('Mailing Lists'),
     '#description' => t('Join a mailing list to receive or participate in its discussions via email.'),
     '#collapsible' => FALSE,
-    '#attributes' => array('id' => array('user_mailman_register'), 'class' => array('umr_list_fieldset')),
+    '#attributes' => array('id' => 'user_mailman_register', 'class' => array('umr_list_fieldset')),
   );
   $lists = _user_mailman_register_get_lists();
   if (empty($lists)) {
@@ -220,4 +220,3 @@ function user_mailman_register_form_submit($form, &$form_state) {
   }
   _user_mailman_register_subscribe($account, $form_state['values'], FALSE, $user_mail);
 }
-
