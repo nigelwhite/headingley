@@ -7,3 +7,5 @@ sites/*/private
 
 # this is going straight to cpanel so
 .ddev
+
+NWreadme.txt
