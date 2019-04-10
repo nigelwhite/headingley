@@ -4,3 +4,16 @@ sites/*/settings*.php
 # Ignore paths that contain user-generated content.
 sites/*/files
 sites/*/private
+
+# this is going straight to cpanel so
+.ddev
+app
+
+# legacy config from drupal 6
+files
+
+# there is stuff on emwd already
+backups
+cgi-bin
+e
+.ftpquota
