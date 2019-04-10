@@ -7,7 +7,6 @@ sites/*/private
 
 # this is going straight to cpanel so
 .ddev
-app
 
 # legacy config from drupal 6
 files
