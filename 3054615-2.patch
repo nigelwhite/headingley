@@ -1,0 +1,231 @@
+diff --git a/misc/typo3/phar-stream-wrapper/.appveyor.yml b/misc/typo3/phar-stream-wrapper/.appveyor.yml
+new file mode 100644
+index 0000000000..4017284a28
+--- /dev/null
++++ b/misc/typo3/phar-stream-wrapper/.appveyor.yml
+@@ -0,0 +1,51 @@
++build: false
++platform:
++    - x64
++clone_folder: c:\projects\php-project-workspace
++
++environment:
++    matrix:
++        - dependencies: current
++          php_ver_target: 5.5
++
++cache:
++    - '%LOCALAPPDATA%\Composer\files -> composer.lock'
++    # Cache chocolatey packages
++    - C:\ProgramData\chocolatey\bin -> .appveyor.yml
++    - C:\ProgramData\chocolatey\lib -> .appveyor.yml
++    # Cache php install
++    - c:\tools\php -> .appveyor.yml
++
++## Set up environment variables
++init:
++    - SET PATH=C:\Program Files\OpenSSL;c:\tools\php;%PATH%
++    - SET COMPOSER_NO_INTERACTION=1
++    - SET PHP=1 # This var is connected to PHP install cache
++    - SET ANSICON=121x90 (121x90)
++
++## Install PHP and composer, and run the appropriate composer command
++install:
++    - IF EXIST c:\tools\php (SET PHP=0) # Checks for the PHP install being cached
++    - ps: appveyor-retry cinst --params '""/InstallDir:C:\tools\php""' --ignore-checksums -y php --version ((choco search php --exact --all-versions -r | select-string -pattern $env:php_ver_target | sort { [version]($_ -split '\|' | select -last 1) } -Descending | Select-Object -first 1) -replace '[php|]','')
++    - cd c:\tools\php
++    - IF %PHP%==1 copy php.ini-production php.ini /Y
++    - IF %PHP%==1 echo date.timezone="UTC" >> php.ini
++    - IF %PHP%==1 echo extension_dir=ext >> php.ini
++    - IF %PHP%==1 echo extension=php_openssl.dll >> php.ini
++    - IF %PHP%==1 echo extension=php_mbstring.dll >> php.ini
++    - IF %PHP%==1 echo extension=php_fileinfo.dll >> php.ini
++    - IF %PHP%==1 echo extension=php_bz2.dll >> php.ini
++    - IF %PHP%==1 echo @php %%~dp0composer.phar %%* > composer.bat
++    - appveyor-retry appveyor DownloadFile https://getcomposer.org/composer.phar
++    - cd c:\projects\php-project-workspace
++# Remove xdebug dependency as performance testing is not relevant at this point.
++    - composer remove --dev ext-xdebug
++    - IF %dependencies%==lowest appveyor-retry composer update --prefer-lowest --no-progress --profile -n
++    - IF %dependencies%==current appveyor-retry composer install --no-progress --profile
++    - IF %dependencies%==highest appveyor-retry composer update --no-progress --profile -n
++    - composer show
++
++## Run the actual test
++test_script:
++    - cd c:\projects\php-project-workspace
++    - vendor/bin/phpunit
+diff --git a/misc/typo3/phar-stream-wrapper/README.md b/misc/typo3/phar-stream-wrapper/README.md
+index 179bb6fd77..14d1ffd15d 100644
+--- a/misc/typo3/phar-stream-wrapper/README.md
++++ b/misc/typo3/phar-stream-wrapper/README.md
+@@ -1,5 +1,6 @@
+ [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/TYPO3/phar-stream-wrapper/badges/quality-score.png?b=v2)](https://scrutinizer-ci.com/g/TYPO3/phar-stream-wrapper/?branch=v2)
+ [![Travis CI Build Status](https://travis-ci.org/TYPO3/phar-stream-wrapper.svg?branch=v2)](https://travis-ci.org/TYPO3/phar-stream-wrapper)
++[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/q4ls5tg4w1d6sf4i/branch/v2?svg=true)](https://ci.appveyor.com/project/ohader/phar-stream-wrapper)
+ 
+ # PHP Phar Stream Wrapper
+ 
+@@ -21,9 +22,11 @@ and has been addressed concerning the specific attack vector and for this generi
+ `PharStreamWrapper` in TYPO3 versions 7.6.30 LTS, 8.7.17 LTS and 9.3.1 on 12th
+ July 2018.
+ 
+-* https://typo3.org/security/advisory/typo3-core-sa-2018-002/
+ * https://blog.secarma.co.uk/labs/near-phar-dangerous-unserialization-wherever-you-are
+ * https://youtu.be/GePBmsNJw6Y
++* https://typo3.org/security/advisory/typo3-psa-2018-001/
++* https://typo3.org/security/advisory/typo3-psa-2019-007/
++* https://typo3.org/security/advisory/typo3-psa-2019-008/
+ 
+ ## License
+ 
+diff --git a/misc/typo3/phar-stream-wrapper/composer.json b/misc/typo3/phar-stream-wrapper/composer.json
+index 8c22411875..e36b09e7a5 100644
+--- a/misc/typo3/phar-stream-wrapper/composer.json
++++ b/misc/typo3/phar-stream-wrapper/composer.json
+@@ -7,7 +7,6 @@
+     "keywords": ["php", "phar", "stream-wrapper", "security"],
+     "require": {
+         "php": "^5.3.3|^7.0",
+-        "ext-fileinfo": "*",
+         "ext-json": "*",
+         "brumann/polyfill-unserialize": "^1.0"
+     },
+@@ -15,6 +14,9 @@
+         "ext-xdebug": "*",
+         "phpunit/phpunit": "^4.8.36"
+     },
++    "suggest": {
++        "ext-fileinfo": "For PHP builtin file type guessing, otherwise uses internal processing"
++    },
+     "autoload": {
+         "psr-4": {
+             "TYPO3\\PharStreamWrapper\\": "src/"
+diff --git a/misc/typo3/phar-stream-wrapper/src/Helper.php b/misc/typo3/phar-stream-wrapper/src/Helper.php
+index c074ddea04..cdba65ca28 100644
+--- a/misc/typo3/phar-stream-wrapper/src/Helper.php
++++ b/misc/typo3/phar-stream-wrapper/src/Helper.php
+@@ -52,7 +52,7 @@ class Helper
+ 
+         while (count($parts)) {
+             $currentPath = implode('/', $parts);
+-            if (@is_file($currentPath)) {
++            if (@is_file($currentPath) && realpath($currentPath) !== false) {
+                 return $currentPath;
+             }
+             array_pop($parts);
+@@ -106,7 +106,7 @@ class Helper
+      * @param string $path File path to process
+      * @return string
+      */
+-    private static function normalizeWindowsPath($path)
++    public static function normalizeWindowsPath($path)
+     {
+         return str_replace('\\', '/', $path);
+     }
+diff --git a/misc/typo3/phar-stream-wrapper/src/Phar/Reader.php b/misc/typo3/phar-stream-wrapper/src/Phar/Reader.php
+index 32e516be3a..42794faf52 100644
+--- a/misc/typo3/phar-stream-wrapper/src/Phar/Reader.php
++++ b/misc/typo3/phar-stream-wrapper/src/Phar/Reader.php
+@@ -19,6 +19,11 @@ class Reader
+     private $fileName;
+ 
+     /**
++     * Mime-type in order to use zlib, bzip2 or no compression.
++     * In case ext-fileinfo is not present only the relevant types
++     * 'application/x-gzip' and 'application/x-bzip2' are assigned
++     * to this class property.
++     *
+      * @var string
+      */
+     private $fileType;
+@@ -152,8 +157,37 @@ class Reader
+      */
+     private function determineFileType()
+     {
+-        $fileInfo = new \finfo();
+-        return $fileInfo->file($this->fileName, FILEINFO_MIME_TYPE);
++        if (class_exists('\\finfo')) {
++            $fileInfo = new \finfo();
++            return $fileInfo->file($this->fileName, FILEINFO_MIME_TYPE);
++        }
++        return $this->determineFileTypeByHeader();
++    }
++
++    /**
++     * In case ext-fileinfo is not present only the relevant types
++     * 'application/x-gzip' and 'application/x-bzip2' are resolved.
++     *
++     * @return string
++     */
++    private function determineFileTypeByHeader()
++    {
++        $resource = fopen($this->fileName, 'r');
++        if (!is_resource($resource)) {
++            throw new ReaderException(
++                sprintf('Resource %s could not be opened', $this->fileName),
++                1557753055
++            );
++        }
++        $header = fgets($resource, 4);
++        fclose($resource);
++        $mimeType = '';
++        if (strpos($header, "\x42\x5a\x68") === 0) {
++            $mimeType = 'application/x-bzip2';
++        } elseif (strpos($header, "\x1f\x8b") === 0) {
++            $mimeType = 'application/x-gzip';
++        }
++        return $mimeType;
+     }
+ 
+     /**
+diff --git a/misc/typo3/phar-stream-wrapper/src/Resolver/PharInvocationResolver.php b/misc/typo3/phar-stream-wrapper/src/Resolver/PharInvocationResolver.php
+index 80b86d3db4..1dc42e8597 100644
+--- a/misc/typo3/phar-stream-wrapper/src/Resolver/PharInvocationResolver.php
++++ b/misc/typo3/phar-stream-wrapper/src/Resolver/PharInvocationResolver.php
+@@ -14,6 +14,7 @@ namespace TYPO3\PharStreamWrapper\Resolver;
+ use TYPO3\PharStreamWrapper\Helper;
+ use TYPO3\PharStreamWrapper\Manager;
+ use TYPO3\PharStreamWrapper\Phar\Reader;
++use TYPO3\PharStreamWrapper\Phar\ReaderException;
+ use TYPO3\PharStreamWrapper\Resolvable;
+ 
+ class PharInvocationResolver implements Resolvable
+@@ -59,7 +60,7 @@ class PharInvocationResolver implements Resolvable
+     {
+         $hasPharPrefix = Helper::hasPharPrefix($path);
+         if ($flags === null) {
+-            $flags = static::RESOLVE_REALPATH | static::RESOLVE_ALIAS | static::ASSERT_INTERNAL_INVOCATION;
++            $flags = static::RESOLVE_REALPATH | static::RESOLVE_ALIAS;
+         }
+ 
+         if ($hasPharPrefix && $flags & static::RESOLVE_ALIAS) {
+@@ -147,9 +148,14 @@ class PharInvocationResolver implements Resolvable
+             }
+             // ensure the possible alias name (how we have been called initially) matches
+             // the resolved alias name that was retrieved by the current possible base name
+-            $reader = new Reader($currentBaseName);
+-            $currentAlias = $reader->resolveContainer()->getAlias();
+-            if ($currentAlias !== $possibleAlias) {
++            try {
++                $reader = new Reader($currentBaseName);
++                $currentAlias = $reader->resolveContainer()->getAlias();
++            } catch (ReaderException $exception) {
++                // most probably that was not a Phar file
++                continue;
++            }
++            if (empty($currentAlias) || $currentAlias !== $possibleAlias) {
+                 continue;
+             }
+             $this->addBaseName($currentBaseName);
+@@ -215,7 +221,9 @@ class PharInvocationResolver implements Resolvable
+         if (isset($this->baseNames[$baseName])) {
+             return;
+         }
+-        $this->baseNames[$baseName] = realpath($baseName);
++        $this->baseNames[$baseName] = Helper::normalizeWindowsPath(
++            realpath($baseName)
++        );
+     }
+ 
+     /**
