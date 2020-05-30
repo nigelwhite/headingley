@@ -1062,7 +1062,7 @@ function user_account_form(&$form, &$form_state) {
     '#type' => 'textfield',
     '#title' => t('Username'),
     '#maxlength' => USERNAME_MAX_LENGTH,
-    '#description' => t('Please give your REAL NAME. First name, then surname. See our policy on real names at www.headingley.org/realnames. Spaces are allowed; punctuation is not allowed except for periods, hyphens, apostrophes, and underscores.'),
+    '#description' => t('Spaces are allowed; punctuation is not allowed except for periods, hyphens, apostrophes, and underscores.'),
     '#required' => TRUE,
     '#attributes' => array('class' => array('username')),
     '#default_value' => (!$register ? $account->name : ''),
